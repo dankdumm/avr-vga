@@ -11,6 +11,7 @@ int main() {
     vga_init(&PORTC, 800, 600, VGA_HPOL_POSITIVE | VGA_VPOL_POSITIVE);
 
     while(1) {
+        //vga_update();
         //While loop, doing nothing
     }
 

@@ -13,5 +13,5 @@ VGA_C=vga.c
 $(MAIN_HEX): $(MAIN_OUT)
 	$(OBJCOPY) $(OCFLAGS) $(MAIN_OUT) $(MAIN_HEX)
 
-$(MAIN_OUT): $(MAIN_C) $(VGA_C)
+$(MAIN_OUT): $(MAIN_C) $(VGA_C) $(VGA_H)
 	$(CC) -o $(MAIN_OUT) $(CFLAGS) $(MAIN_C) $(VGA_C)

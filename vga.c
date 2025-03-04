@@ -146,13 +146,25 @@ void vga_init(volatile uint8_t* output, uint16_t width, uint16_t height, uint8_t
     TCCR1B &= ~(1<<5);
 
     //TODO: WRITE TO OCR1A
-    vga_writeOCR1A((uint16_t)(F_CPU/1000000)*SVGA_800X600_60HZ_HDIS);
-    //vga_writeOCR1A((uint16_t)(F_CPU/1000000)*SVGA_800X600_60HZ_HFPORCH);
+    //vga_writeOCR1A((uint16_t)(F_CPU/1000000)*SVGA_800X600_60HZ_HDIS);
+    //vga_writeOCR1A((uint16_t)(F_CPU/1000000)*(SVGA_HALL_TEST-4));
+    //It takes at least 4 cycles for it to enter the ISR, and 4 to return from it
+    vga_writeOCR1A((uint16_t)(F_CPU/1000000)*(SVGA_800X600_HLINE));
+    vga_writeTCNT1(0);
+    //TESTING: OUTPUT GREEN SIGNAL?
+    //PORTC |= 0b111<<2;
 }
 
-//Timer Counter Interrupt Routine (1A)
-//Is this too slow? we'll see...
-void vga_TCIR1A() {
+void vga_update() {
+    if(vga_vcnt%20==0) PORTC ^= 0b111<<2;
+}
+
+//TODO: Read up, would the CTC mode or fast PWM mode be suitable for counting instead?
+ISR(TIMER1_COMPA_vect, ISR_BLOCK) {
+    //Status Register is not preserved.
+    //TODO: NOTE: THE HYSNC TIMING IS STILL FOLLOWING HLINE0, which excludes the BPORCH.
+    //TODO: WHY DOES IT SHUTOFF WHEN I CONNECT MORE THAN 1 COLOR LINE?
+    //TODO: why is there a 2us delay??
     /*
     The Timer Counter is used to track the HYSNC signal
     A variable, vga_vsync, is used to track the VYSNC signal
@@ -167,81 +179,18 @@ void vga_TCIR1A() {
     Sync 2/8
     Back Porch 3/12
     */
-    //uint16_t vcnt0 = vga_vcnt;
-    //hstate
-    //TODO: WRITE TO OCR1A
-    //TODO: Can probably merge the vga_state and counter together?
-    PORTC = 0b00000001;
-    //vga_writeTCNT1(0);
+    vga_vcnt++;
+    if(vga_vcnt>=602 && vga_vcnt<=605) PORTC |= 1<<1;
+    else PORTC &= ~(1<<1);
+    if(vga_vcnt > 628) vga_vcnt=0;
 
-    switch(vga_state & 0b11) {
-        case 0: //going front porch
-            //set hsync pin low(check pol.)
-            *vga_video &= (~1) | ~(vga_flags & 1);
-            vga_state++;
-            vga_writeOCR1A((uint16_t)(F_CPU/1000000)*SVGA_800X600_60HZ_HFPORCH);
-            break;
-
-        case 1: //going sync
-            //set hysnc pin high (check pol)
-            *vga_video &= (~1) | (vga_flags & 1);
-            vga_state++;
-            vga_writeOCR1A((uint16_t)(F_CPU/1000000)*SVGA_800X600_60HZ_HSYNC);
-            break;
-
-        case 2: //going back porch
-            //set hsync pin low(check pol)
-            *vga_video &= (~1) | ~(vga_flags & 1);
-            vga_state++;
-            vga_writeOCR1A((uint16_t)(F_CPU/1000000)*SVGA_800X600_60HZ_HBPORCH);
-            break;
-
-        case 3: //going display
-            //set hsync pin low(check pol)
-            *vga_video &= (~1) | ~(vga_flags & 1);
-            //reset vga_state bits for hstate
-            vga_state &= (0b11<<2);
-            vga_vcnt++;
-            vga_writeOCR1A((uint16_t)(F_CPU/1000000)*SVGA_800X600_60HZ_HDIS);
-            vga_writeTCNT1(0);
-            break;
-    }
-
-    //vga_vcnt-vcnt0 != 0
-    //vstate: check only if the vga_vcnt reaches a boundary
-    if(vga_vcnt==SVGA_800X600_60HZ_VDIS ||
-        vga_vcnt==SVGA_800X600_60HZ_VFPORCH ||
-        vga_vcnt==SVGA_800X600_60HZ_VSYNC ||
-        vga_vcnt==SVGA_800X600_60HZ_VBPORCH
-        ) {
-        switch(vga_state & (0b11<<2)) {
-            case 0: //going front porch
-                *vga_video &= ~(1<<1) | ~(vga_flags & (1<<1));
-                vga_state += 4;
-                break;
-
-            case 4: //going sync - high
-                *vga_video &= ~(1<<1) | (vga_flags & (1<<1));
-                vga_state += 4;
-                break;
-
-            case 8: //going back porch
-                *vga_video &= ~(1<<1) | ~(vga_flags & (1<<1));
-                vga_state += 4;
-                break;
-
-            case 12: //going display
-                *vga_video &= ~(1<<1) | ~(vga_flags & (1<<1));
-                vga_state &= 0b11;
-                vga_vcnt = 0;
-                break;
-        }
-    }
-}
-
-//TODO: Read up, would the CTC mode or fast PWM mode be suitable for counting instead?
-ISR(TIMER1_COMPA_vect, ISR_BLOCK) {
-    //Status Register is not preserved.
-    vga_TCIR1A();
+    //HSYNC SIGNAL
+    //if(TCNT1^(uint16_t)(F_CPU/1000000)*SVGA_800X600_HLINE) { PORTC |= 1; PORTC &= ~(0b111<<2); }
+    //else { PORTC &= ~1; PORTC |= 0b111<<2; }
+    PORTC |= 1; PORTC &= ~(0b111<<2);
+    _delay_us(3);
+    PORTC &= ~1; PORTC |= 0b111<<2;
+    //TCNT1 = TCNT1 - OCR1A;
+    TCNT1 = TCNT1 - OCR1A - 3*(uint16_t)(F_CPU/1000000);
 }
 
