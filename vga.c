@@ -151,12 +151,17 @@ void vga_init(volatile uint8_t* output, uint16_t width, uint16_t height, uint8_t
     //It takes at least 4 cycles for it to enter the ISR, and 4 to return from it
     vga_writeOCR1A((uint16_t)(F_CPU/1000000)*(SVGA_800X600_HLINE));
     vga_writeTCNT1(0);
-    //TESTING: OUTPUT GREEN SIGNAL?
-    //PORTC |= 0b111<<2;
+    PORTC |= 0b111<<2;
 }
 
-void vga_update() {
-    if(vga_vcnt%20==0) PORTC ^= 0b111<<2;
+void vga_update(uint8_t* buffer) {
+    //PORTC &= ~(0b111<<2);
+    //PORTC |= 0b111<<2;
+    //PORTC |= ~(*(buffer+vga_vcnt)*(0b111<<2));
+    //if(vga_vcnt==0) PORTC &= ~(0b111<<2);
+    //if(vga_vcnt%100==0) PORTC ^= 0b111<<2;
+    //else PORTC &= ~(0b111<<2);
+    //if(*(buffer+vga_vcnt)==1) PORTC |= 0b111<<2;
 }
 
 //TODO: Read up, would the CTC mode or fast PWM mode be suitable for counting instead?
@@ -179,6 +184,7 @@ ISR(TIMER1_COMPA_vect, ISR_BLOCK) {
     Sync 2/8
     Back Porch 3/12
     */
+    //VSYNC SIGNAL
     vga_vcnt++;
     if(vga_vcnt>=602 && vga_vcnt<=605) PORTC |= 1<<1;
     else PORTC &= ~(1<<1);
@@ -187,9 +193,11 @@ ISR(TIMER1_COMPA_vect, ISR_BLOCK) {
     //HSYNC SIGNAL
     //if(TCNT1^(uint16_t)(F_CPU/1000000)*SVGA_800X600_HLINE) { PORTC |= 1; PORTC &= ~(0b111<<2); }
     //else { PORTC &= ~1; PORTC |= 0b111<<2; }
+    //It has to restore the color signal to its previous state.
+    uint8_t sig = PORTC & (0b111<<2);
     PORTC |= 1; PORTC &= ~(0b111<<2);
     _delay_us(3);
-    PORTC &= ~1; PORTC |= 0b111<<2;
+    PORTC &= ~1; PORTC |= sig;
     //TCNT1 = TCNT1 - OCR1A;
     TCNT1 = TCNT1 - OCR1A - 3*(uint16_t)(F_CPU/1000000);
 }

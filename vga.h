@@ -48,6 +48,6 @@ void vga_writeOCR1A(uint16_t val);
 uint16_t vga_readTCNT1();
 void vga_init(volatile uint8_t* output, uint16_t width, uint16_t height, uint8_t flags);
 void vga_TCIR1A();
-void vga_update();
+void vga_update(uint8_t* buffer);
 
 #endif //VGA_H
