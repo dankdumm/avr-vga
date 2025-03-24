@@ -1,1 +1,0 @@
-avr-gcc -o ./debug/main.out -O1 -mmcu=atmega328p -I./ -Wall -Werror main.c vga.c
